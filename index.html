@@ -4,37 +4,30 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kalkulator studiów UWR</title>
-
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="container">
     <h1>Kalkulator studiów UWR</h1>
-
     <section class="status card" id="status-bar">
       <div class="status-top">
         <div class="stat">
           <div class="stat-label">ECTS łącznie (od sem. 1)</div>
           <div class="stat-value" id="ects-total">0</div>
         </div>
-
         <div class="status-actions">
           <input type="file" id="file-input" accept="application/json" hidden>
           <button type="button" id="btn-save" class="primary">Zapisz</button>
         </div>
       </div>
-
       <div class="checklist" id="checklist"></div>
     </section>
-
     <section id="semesters"></section>
-
     <div class="actions">
       <button type="button" id="btn-add-course">Dodaj nowy przedmiot</button>
       <button type="button" id="btn-add-semester" class="secondary">Dodaj semestr</button>
     </div>
-
     <template id="tpl-semester">
       <div class="semester card">
         <div class="semester-header">
@@ -46,13 +39,11 @@
         <div class="courses"></div>
       </div>
     </template>
-
     <template id="tpl-course">
       <div class="course-row">
         <input class="subject" placeholder="Nazwa przedmiotu">
         <input class="ects" type="number" placeholder="ECTS" min="0" step="1">
-
-       <select class="tags-select" multiple></select>
+        <select class="tags-select" multiple></select>
         <select class="type-select" multiple>
           <option>I</option>
           <option>K</option>
@@ -67,12 +58,10 @@
           <option>IInż</option>
           <option>Kinż</option>
         </select>
-
         <button type="button" class="icon-btn remove-course" title="Usuń przedmiot">✕</button>
       </div>
     </template>
   </main>
-
   <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
   <script src="scripts.js"></script>
 </body>
