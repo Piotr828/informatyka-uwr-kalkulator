@@ -90,3 +90,30 @@ button.primary{background:#153052;border-color:var(--accent-strong)}
 .choices__list--dropdown .choices__item{background-color:#0f131a!important;color:#e6e6e6!important}
 .choices__list--dropdown .choices__item--selectable.is-highlighted{background-color:#173252!important;color:#ffffff!important}
 .choices__input{background-color:#0f131a!important;color:#e6e6e6!important}
+.check{
+  position:relative;
+  overflow:hidden;
+}
+.check::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  width:var(--fill, 0%);
+  pointer-events:none;
+  transition:width .25s ease;
+  opacity:.22;
+  background:linear-gradient(to right,var(--accent),var(--accent-strong));
+}
+.check.ok::before{
+  background:linear-gradient(to right,var(--ok),#56d88a);
+  opacity:.20;
+}
+.check.bad::before{
+  background:linear-gradient(to right,var(--bad),#ff9a9a);
+  opacity:.22;
+}
+.check .dot,
+.check .text{
+  position:relative;
+  z-index:1;
+}

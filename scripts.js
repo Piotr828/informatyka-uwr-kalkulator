@@ -1,8 +1,11 @@
 const THEMATIC_TAGS=["RPiS","IO","PiPO","ASK","SO","SK","BD"];
 const TAGS_PRESET=[...THEMATIC_TAGS];
-const RULES={minI:66,minIInz:12,minKInz:10,needP:1,minOIKP:170,thematicMin:28,thematicEachAtLeastOne:true,needPS:1,minPraktyki:4,minHS:5,minOWI:1,minE:2,needAngielski:1};
+const RULES={minI:54,minIInz:12,minKInz:10,needP:1,minOIKP:170,thematicMin:28,thematicEachAtLeastOne:true,needPS:1,minPraktyki:4,minHS:5,minOWI:1,minE:2,needAngielski:1};
 
 document.addEventListener("DOMContentLoaded",()=>{
+
+  const STORAGE_KEY = "uwr-plan-autosave";
+
   const semestersEl=document.getElementById("semesters");
   const tplSem=document.getElementById("tpl-semester");
   const tplCourse=document.getElementById("tpl-course");
@@ -43,10 +46,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     const chTags=initChoices(tagsSel,{placeholderValue:"Tagi",duplicateItemsAllowed:false,addItems:true});
 
     if(init){
-      // na wszelki wypadek wymuś zaznaczenia także po inicjalizacji
       if(init.types&&init.types.length) chType.setChoiceByValue(init.types);
       if(init.tags&&init.tags.length)   chTags.setChoiceByValue(init.tags);
-
       qs(".subject",node).value=init.subject||"";
       qs(".ects",node).value=init.ects||0;
     }
@@ -55,7 +56,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const sem=node.closest(".semester");
       node.remove();
       if(qs(".courses",sem).children.length===0){sem.remove();renumberSemesters()}
-      recalcECTS();renderChecklist();updateSaveMode();
+      recalcECTS();renderChecklist();updateSaveMode();autosave();
     });
 
     qs(".ects",node).addEventListener("input",onDataChanged);
@@ -75,14 +76,14 @@ document.addEventListener("DOMContentLoaded",()=>{
   function addSemester(){
     const sem=createSemester();
     semestersEl.appendChild(sem);
-    renumberSemesters();recalcECTS();renderChecklist();updateSaveMode();
+    renumberSemesters();recalcECTS();renderChecklist();updateSaveMode();autosave();
   }
 
   function addCourseToCurrent(){
     let last=semestersEl.lastElementChild;
     if(!last){addSemester();last=semestersEl.lastElementChild}
     qs(".courses",last).appendChild(createCourseRow());
-    recalcECTS();renderChecklist();updateSaveMode();
+    recalcECTS();renderChecklist();updateSaveMode();autosave();
   }
 
   function renumberSemesters(){Array.from(semestersEl.children).forEach((sem,i)=>{qs(".semester-title",sem).textContent=`Semestr ${i+1}`})}
@@ -157,22 +158,36 @@ document.addEventListener("DOMContentLoaded",()=>{
   function renderChecklist(){
     const cl=document.getElementById("checklist");cl.innerHTML="";
     const {details,checks}=computeStatus();
+
+    const coveredCount = Object.values(details.thematicCovered).filter(Boolean).length;
+    const prog = (cur, req) => req>0 ? Math.max(0, Math.min(1, cur/req)) : (cur>0 ? 1 : 0);
+
     const rows=[
-      {ok:checks.I,text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`},
-      {ok:checks.IInz,text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`},
-      {ok:checks.KInz,text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`},
-      {ok:checks.P,text:`Projekt P: co najmniej 1 (masz ${details.cntP})`},
-      {ok:checks.OIKP,text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`},
-      {ok:checks.THEMIN,text:`Przedmioty tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`},
-      {ok:checks.THEEACH,text:`Każdy znacznik tematyczny co najmniej raz: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`},
-      {ok:checks.PS,text:`Proseminarium (PS): ≥ ${RULES.needPS}`},
-      {ok:checks.PRAKTYKI,text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`},
-      {ok:checks.HS,text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`},
-      {ok:checks.OWI,text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`},
-      {ok:checks.E,text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`},
-      {ok:checks.ANG,text:`ANGIELSKI: obecny`}
+      {ok:checks.I,         text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`,                                    progress:prog(details.sumI, RULES.minI)},
+      {ok:checks.IInz,      text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`,                           progress:prog(details.sumIInz, RULES.minIInz)},
+      {ok:checks.KInz,      text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`,                           progress:prog(details.sumKInz, RULES.minKInz)},
+      {ok:checks.P,         text:`Projekt P: co najmniej 1 (masz ${details.cntP})`,                                  progress:prog(details.cntP, RULES.needP)},
+      {ok:checks.OIKP,      text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`,                        progress:prog(details.sumOIKP, RULES.minOIKP)},
+      {ok:checks.THEMIN,    text:`Przedmioty tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`,  progress:prog(details.sumThematic, RULES.thematicMin)},
+      {ok:checks.THEEACH,   text:`Każdy znacznik tematyczny co najmniej raz: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`, progress:prog(coveredCount, THEMATIC_TAGS.length)},
+      {ok:checks.PS,        text:`Proseminarium PS ≥ ${RULES.needPS} (masz ${details.cntPS})`,                       progress:prog(details.cntPS, RULES.needPS)},
+      {ok:checks.PRAKTYKI,  text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`,                     progress:prog(details.sumPr, RULES.minPraktyki)},
+      {ok:checks.HS,        text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,                                 progress:prog(details.sumHS, RULES.minHS)},
+      {ok:checks.OWI,       text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,                              progress:prog(details.sumOWI, RULES.minOWI)},
+      {ok:checks.E,         text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,                                    progress:prog(details.sumE, RULES.minE)},
+      {ok:checks.ANG,       text:`ANGIELSKI: zaliczony`,                                                              progress:prog(details.cntAng, RULES.needAngielski)}
     ];
-    rows.forEach(r=>{const d=document.createElement("div");d.className=`check ${r.ok?"ok":"bad"}`;d.innerHTML=`<span class="dot"></span><span class="text">${r.text}</span>`;cl.appendChild(d)});
+
+    rows.forEach(r=>{
+      const d=document.createElement("div");
+      d.className=`check ${r.ok?"ok":"bad"}`;
+      const pct = Math.round(r.progress*100);
+      d.style.setProperty('--fill', `${Math.min(100,pct)}%`);
+      d.innerHTML = `
+        <span class="dot"></span>
+        <span class="text">${r.text}</span>`;
+      cl.appendChild(d);
+    });
   }
 
   function serialize(){
@@ -207,6 +222,27 @@ document.addEventListener("DOMContentLoaded",()=>{
     renumberSemesters();recalcECTS();renderChecklist();updateSaveMode();
   }
 
+  function autosave(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serialize()));
+    }catch(e){
+      console.warn("Autosave failed", e);
+    }
+  }
+
+  function loadAutosave(){
+    try{
+      const data = localStorage.getItem(STORAGE_KEY);
+      if(data){
+        deserialize(JSON.parse(data));
+        return true;
+      }
+    }catch(e){
+      console.warn("Load autosave failed", e);
+    }
+    return false;
+  }
+
   function downloadJSON(name,data){
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
@@ -221,19 +257,28 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function updateSaveMode(){
     if(isAllInputsEmpty()){
-      btnSave.textContent="Wczytaj";
+      btnSave.textContent="Importuj";
       btnSave.classList.add("secondary");
       btnSave.classList.remove("primary");
     }else{
-      btnSave.textContent="Zapisz";
+      btnSave.textContent="Eksportuj";
       btnSave.classList.add("primary");
       btnSave.classList.remove("secondary");
     }
   }
 
-  function onDataChanged(){recalcECTS();renderChecklist();updateSaveMode();}
+  function onDataChanged(){
+    recalcECTS();
+    renderChecklist();
+    updateSaveMode();
+    autosave();
+  }
 
-  addSemester();renderChecklist();updateSaveMode();
+  if(!loadAutosave()){
+    addSemester();
+    renderChecklist();
+    updateSaveMode();
+  }
 
   document.getElementById("btn-add-course").addEventListener("click",addCourseToCurrent);
   document.getElementById("btn-add-semester").addEventListener("click",addSemester);
@@ -245,7 +290,16 @@ document.addEventListener("DOMContentLoaded",()=>{
   fileInput.addEventListener("change",e=>{
     const f=e.target.files&&e.target.files[0];if(!f)return;
     const r=new FileReader();
-    r.onload=()=>{try{deserialize(JSON.parse(r.result))}catch{alert("Nieprawidłowy plik JSON")}finally{fileInput.value=""}};
+    r.onload=()=>{
+      try{
+        deserialize(JSON.parse(r.result));
+        autosave();
+      }catch{
+        alert("Nieprawidłowy plik JSON")
+      }finally{
+        fileInput.value="";
+      }
+    };
     r.readAsText(f);
   });
 });
