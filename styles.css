@@ -117,3 +117,52 @@ button.primary{background:#153052;border-color:var(--accent-strong)}
   position:relative;
   z-index:1;
 }
+.check{position:relative;overflow:hidden}
+.check::before{content:"";position:absolute;inset:0;width:var(--fill,0%);opacity:.22;pointer-events:none}
+.check.ok::before{background:linear-gradient(to right,#2ecc71,#56d88a)}
+.check.bad::before{background:linear-gradient(to right,#ff5c5c,#ff9a9a)}
+.check.neutral::before{background:linear-gradient(to right,var(--accent),var(--accent-strong))}
+.check::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,.12) 0 1px,
+      transparent 1px calc(14.285714% - 0px)
+    );
+  z-index:1;
+}
+
+.check::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  width:var(--fill, 0%);
+  opacity:.22;
+  pointer-events:none;
+  transition:width .25s ease;
+}
+
+.check.ok::before {background:linear-gradient(to right,#2ecc71,#56d88a)}
+.check.bad::before{background:linear-gradient(to right,#ff5c5c,#ff9a9a)}
+.check.neutral::before{background:linear-gradient(to right,var(--accent),var(--accent-strong))}
+
+/* mocniejsza kreska semestru */
+.check::after {
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      rgba(255,255,255,.12) 0 1px,
+      transparent 1px calc(14.285714% - 0px)
+    ),
+    linear-gradient(
+      to right,
+      transparent calc(var(--semFrac,0%) - 1px),
+      rgba(255,255,255,.5) calc(var(--semFrac,0%) - 1px),
+      rgba(255,255,255,.5) calc(var(--semFrac,0%) + 1px),
+      transparent calc(var(--semFrac,0%) + 1px)
+    );
+}

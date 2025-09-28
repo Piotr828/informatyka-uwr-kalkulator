@@ -155,40 +155,48 @@ document.addEventListener("DOMContentLoaded",()=>{
     };
   }
 
-  function renderChecklist(){
-    const cl=document.getElementById("checklist");cl.innerHTML="";
-    const {details,checks}=computeStatus();
+function renderChecklist(){
+  const SEGMENTS = 7;
+  const cl = document.getElementById("checklist");
+  cl.innerHTML = "";
 
-    const coveredCount = Object.values(details.thematicCovered).filter(Boolean).length;
-    const prog = (cur, req) => req>0 ? Math.max(0, Math.min(1, cur/req)) : (cur>0 ? 1 : 0);
+  const { details, checks } = computeStatus();
+  const courses = getAllCourses();
 
-    const rows=[
-      {ok:checks.I,         text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`,                                    progress:prog(details.sumI, RULES.minI)},
-      {ok:checks.IInz,      text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`,                           progress:prog(details.sumIInz, RULES.minIInz)},
-      {ok:checks.KInz,      text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`,                           progress:prog(details.sumKInz, RULES.minKInz)},
-      {ok:checks.P,         text:`Projekt P: co najmniej 1 (masz ${details.cntP})`,                                  progress:prog(details.cntP, RULES.needP)},
-      {ok:checks.OIKP,      text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`,                        progress:prog(details.sumOIKP, RULES.minOIKP)},
-      {ok:checks.THEMIN,    text:`Przedmioty tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`,  progress:prog(details.sumThematic, RULES.thematicMin)},
-      {ok:checks.THEEACH,   text:`Każdy znacznik tematyczny co najmniej raz: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`, progress:prog(coveredCount, THEMATIC_TAGS.length)},
-      {ok:checks.PS,        text:`Proseminarium PS ≥ ${RULES.needPS} (masz ${details.cntPS})`,                       progress:prog(details.cntPS, RULES.needPS)},
-      {ok:checks.PRAKTYKI,  text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`,                     progress:prog(details.sumPr, RULES.minPraktyki)},
-      {ok:checks.HS,        text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,                                 progress:prog(details.sumHS, RULES.minHS)},
-      {ok:checks.OWI,       text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,                              progress:prog(details.sumOWI, RULES.minOWI)},
-      {ok:checks.E,         text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,                                    progress:prog(details.sumE, RULES.minE)},
-      {ok:checks.ANG,       text:`ANGIELSKI: zaliczony`,                                                              progress:prog(details.cntAng, RULES.needAngielski)}
-    ];
+  const maxSemRaw = courses.reduce((m, c) => Math.max(m, c.semester || 0), 0);
+  const maxSem = Math.max(0, Math.min(SEGMENTS, maxSemRaw));
+  const frac = maxSem ? (maxSem / SEGMENTS) * 100 : 0;
 
-    rows.forEach(r=>{
-      const d=document.createElement("div");
-      d.className=`check ${r.ok?"ok":"bad"}`;
-      const pct = Math.round(r.progress*100);
-      d.style.setProperty('--fill', `${Math.min(100,pct)}%`);
-      d.innerHTML = `
-        <span class="dot"></span>
-        <span class="text">${r.text}</span>`;
-      cl.appendChild(d);
-    });
-  }
+  const coveredCount = Object.values(details.thematicCovered).filter(Boolean).length;
+
+  const rows = [
+    { ok: checks.I,        text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`,               ratio: details.sumI / RULES.minI },
+    { ok: checks.IInz,     text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`,      ratio: details.sumIInz / RULES.minIInz },
+    { ok: checks.KInz,     text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`,      ratio: details.sumKInz / RULES.minKInz },
+    { ok: checks.P,        text:`Projekt P: ≥ ${RULES.needP} (masz ${details.cntP})`,          ratio: details.cntP / RULES.needP },
+    { ok: checks.OIKP,     text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`,   ratio: details.sumOIKP / RULES.minOIKP },
+    { ok: checks.THEMIN,   text:`Tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`, ratio: details.sumThematic / RULES.thematicMin },
+    { ok: checks.THEEACH,  text:`Znaczniki: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`, ratio: coveredCount / SEGMENTS },
+    { ok: checks.PS,       text:`Proseminarium (PS): ≥ ${RULES.needPS}`,                       ratio: details.cntPS / RULES.needPS },
+    { ok: checks.PRAKTYKI, text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`, ratio: details.sumPr / RULES.minPraktyki },
+    { ok: checks.HS,       text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,            ratio: details.sumHS / RULES.minHS },
+    { ok: checks.OWI,      text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,         ratio: details.sumOWI / RULES.minOWI },
+    { ok: checks.E,        text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,               ratio: details.sumE / RULES.minE },
+    { ok: checks.ANG,      text:`ANGIELSKI: obecny`,                                           ratio: details.cntAng / RULES.needAngielski }
+  ];
+
+  rows.forEach(r => {
+    const d = document.createElement("div");
+    d.className = `check ${r.ok ? "ok" : "bad"}`;
+    const fill = Math.max(0, Math.min(1, r.ratio || 0)) * 100;
+    d.style.setProperty("--fill", `${fill}%`);
+    d.style.setProperty("--semFrac", `${frac}%`);
+    d.innerHTML = `<span class="dot"></span><span class="text">${r.text}</span>`;
+    cl.appendChild(d);
+  });
+}
+
+
 
   function serialize(){
     const semesters=[];
