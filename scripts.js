@@ -182,7 +182,7 @@ function renderChecklist(){
     { ok: checks.HS,       text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,            ratio: details.sumHS / RULES.minHS },
     { ok: checks.OWI,      text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,         ratio: details.sumOWI / RULES.minOWI },
     { ok: checks.E,        text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,               ratio: details.sumE / RULES.minE },
-    { ok: checks.ANG,      text:`ANGIELSKI: obecny`,                                           ratio: details.cntAng / RULES.needAngielski }
+    { ok: checks.ANG,      text:`ANGIELSKI: zdany`,                                               ratio: details.cntAng / RULES.needAngielski }
   ];
 
   rows.forEach(r => {
