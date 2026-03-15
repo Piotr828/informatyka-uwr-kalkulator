@@ -13,6 +13,29 @@ document.addEventListener("DOMContentLoaded",()=>{
   const fileInput=document.getElementById("file-input");
   const qs=(s,r=document)=>r.querySelector(s);
 
+  const scrapedCourses = [
+    { nameLower: "analiza matematyczna i", ects: 8, types: ["O"], tags: [] },
+    { nameLower: "analiza matematyczna ii", ects: 7, types: ["O"], tags: [] },
+    { nameLower: "algebra liniowa i", ects: 8, types: ["O"], tags: [] },
+    { nameLower: "logika dla informatyków", ects: 6, types: ["O"], tags: [] },
+    { nameLower: "programowanie obiektowe", ects: 6, types: ["I"], tags: ["PiPO"] },
+    { nameLower: "architektura systemów komputerowych", ects: 6, types: ["I"], tags: ["ASK"] },
+    { nameLower: "systemy operacyjne", ects: 6, types: ["I"], tags: ["SO"] },
+    { nameLower: "sieci komputerowe", ects: 6, types: ["I"], tags: ["SK"] },
+    { nameLower: "bazy danych", ects: 6, types: ["I"], tags: ["BD"] },
+    { nameLower: "inżynieria oprogramowania", ects: 6, types: ["I"], tags: ["IO"] },
+    { nameLower: "rachunek prawdopodobieństwa i statystyka", ects: 6, types: ["I"], tags: ["RPiS"] },
+    { nameLower: "metody programowania", ects: 6, types: ["I"], tags: [] },
+    { nameLower: "algorytmy i struktury danych", ects: 7, types: ["I"], tags: [] },
+    { nameLower: "kurs języka c++", ects: 3, types: ["Kinż"], tags: [] },
+    { nameLower: "kurs języka python", ects: 3, types: ["Kinż"], tags: [] },
+    { nameLower: "projekt zespołowy", ects: 6, types: ["P", "IInż"], tags: ["IO"] },
+    { nameLower: "seminarium licencjackie", ects: 3, types: ["PS"], tags: [] },
+    { nameLower: "praktyka zawodowa", ects: 4, types: ["PRAKTYKI"], tags: [] },
+    { nameLower: "wychowanie fizyczne", ects: 0, types: ["O"], tags: [] },
+    { nameLower: "lektorat języka angielskiego", ects: 0, types: ["ANGIELSKI"], tags: [] }
+  ];
+
   function initChoices(el,opts){return new Choices(el,Object.assign({removeItemButton:true,placeholder:true,searchPlaceholderValue:"Szukaj",noResultsText:"Brak wyników",shouldSort:false},opts||{}))}
 
   function ensureOptions(selectEl, values){
@@ -45,11 +68,14 @@ document.addEventListener("DOMContentLoaded",()=>{
     const chType=initChoices(typeSel,{placeholderValue:"Typ"});
     const chTags=initChoices(tagsSel,{placeholderValue:"Tagi",duplicateItemsAllowed:false,addItems:true});
 
+    const inputSubject=qs(".subject",node);
+    const inputEcts=qs(".ects",node);
+
     if(init){
       if(init.types&&init.types.length) chType.setChoiceByValue(init.types);
       if(init.tags&&init.tags.length)   chTags.setChoiceByValue(init.tags);
-      qs(".subject",node).value=init.subject||"";
-      qs(".ects",node).value=init.ects||0;
+      inputSubject.value=init.subject||"";
+      inputEcts.value=init.ects||0;
     }
 
     qs(".remove-course",node).addEventListener("click",()=>{
@@ -59,10 +85,41 @@ document.addEventListener("DOMContentLoaded",()=>{
       recalcECTS();renderChecklist();updateSaveMode();autosave();
     });
 
-    qs(".ects",node).addEventListener("input",onDataChanged);
-    qs(".subject",node).addEventListener("input",onDataChanged);
+    inputEcts.addEventListener("input",onDataChanged);
+    inputSubject.addEventListener("input",onDataChanged);
     typeSel.addEventListener("change",onDataChanged);
     tagsSel.addEventListener("change",onDataChanged);
+
+    let debounceTimer;
+    inputSubject.addEventListener("input", e => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const query = e.target.value.trim().toLowerCase();
+        if (query.length < 3) return;
+
+        const matches = scrapedCourses.filter(c => c.nameLower.includes(query));
+        
+        if (matches.length === 1) {
+          const match = matches[0];
+          
+          if (!inputEcts.value || inputEcts.value === "0") {
+            inputEcts.value = match.ects;
+          }
+          if (chType.getValue(true).length === 0 && match.types.length) {
+            chType.setChoiceByValue(match.types);
+          }
+          if (chTags.getValue(true).length === 0 && match.tags && match.tags.length) {
+            match.tags.forEach(t => {
+              if (![...tagsSel.options].some(o => o.value === t)) {
+                chTags.setChoices([{value: t, label: t}], "value", "label", false);
+              }
+            });
+            chTags.setChoiceByValue(match.tags);
+          }
+          onDataChanged();
+        }
+      }, 400);
+    });
 
     return node;
   }
@@ -155,48 +212,46 @@ document.addEventListener("DOMContentLoaded",()=>{
     };
   }
 
-function renderChecklist(){
-  const SEGMENTS = 7;
-  const cl = document.getElementById("checklist");
-  cl.innerHTML = "";
+  function renderChecklist(){
+    const SEGMENTS = 7;
+    const cl = document.getElementById("checklist");
+    cl.innerHTML = "";
 
-  const { details, checks } = computeStatus();
-  const courses = getAllCourses();
+    const { details, checks } = computeStatus();
+    const courses = getAllCourses();
 
-  const maxSemRaw = courses.reduce((m, c) => Math.max(m, c.semester || 0), 0);
-  const maxSem = Math.max(0, Math.min(SEGMENTS, maxSemRaw));
-  const frac = maxSem ? (maxSem / SEGMENTS) * 100 : 0;
+    const maxSemRaw = courses.reduce((m, c) => Math.max(m, c.semester || 0), 0);
+    const maxSem = Math.max(0, Math.min(SEGMENTS, maxSemRaw));
+    const frac = maxSem ? (maxSem / SEGMENTS) * 100 : 0;
 
-  const coveredCount = Object.values(details.thematicCovered).filter(Boolean).length;
+    const coveredCount = Object.values(details.thematicCovered).filter(Boolean).length;
 
-  const rows = [
-    { ok: checks.I,        text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`,               ratio: details.sumI / RULES.minI },
-    { ok: checks.IInz,     text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`,      ratio: details.sumIInz / RULES.minIInz },
-    { ok: checks.KInz,     text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`,      ratio: details.sumKInz / RULES.minKInz },
-    { ok: checks.P,        text:`Projekt P: ≥ ${RULES.needP} (masz ${details.cntP})`,          ratio: details.cntP / RULES.needP },
-    { ok: checks.OIKP,     text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`,   ratio: details.sumOIKP / RULES.minOIKP },
-    { ok: checks.THEMIN,   text:`Tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`, ratio: details.sumThematic / RULES.thematicMin },
-    { ok: checks.THEEACH,  text:`Znaczniki: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`, ratio: coveredCount / SEGMENTS },
-    { ok: checks.PS,       text:`Proseminarium (PS): ≥ ${RULES.needPS}`,                       ratio: details.cntPS / RULES.needPS },
-    { ok: checks.PRAKTYKI, text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`, ratio: details.sumPr / RULES.minPraktyki },
-    { ok: checks.HS,       text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,            ratio: details.sumHS / RULES.minHS },
-    { ok: checks.OWI,      text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,         ratio: details.sumOWI / RULES.minOWI },
-    { ok: checks.E,        text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,               ratio: details.sumE / RULES.minE },
-    { ok: checks.ANG,      text:`ANGIELSKI: zdany`,                                               ratio: details.cntAng / RULES.needAngielski }
-  ];
+    const rows = [
+      { ok: checks.I,        text:`I ≥ ${RULES.minI} ECTS (masz ${details.sumI})`,               ratio: details.sumI / RULES.minI },
+      { ok: checks.IInz,     text:`IInż ≥ ${RULES.minIInz} ECTS (masz ${details.sumIInz})`,      ratio: details.sumIInz / RULES.minIInz },
+      { ok: checks.KInz,     text:`Kinż ≥ ${RULES.minKInz} ECTS (masz ${details.sumKInz})`,      ratio: details.sumKInz / RULES.minKInz },
+      { ok: checks.P,        text:`Projekt P: ≥ ${RULES.needP} (masz ${details.cntP})`,          ratio: details.cntP / RULES.needP },
+      { ok: checks.OIKP,     text:`O+I+K+P ≥ ${RULES.minOIKP} ECTS (masz ${details.sumOIKP})`,   ratio: details.sumOIKP / RULES.minOIKP },
+      { ok: checks.THEMIN,   text:`Tematyczne ≥ ${RULES.thematicMin} ECTS (masz ${details.sumThematic})`, ratio: details.sumThematic / RULES.thematicMin },
+      { ok: checks.THEEACH,  text:`Znaczniki: ${THEMATIC_TAGS.map(t=>`${t}:${details.thematicCovered[t]?"✓":"–"}`).join(" ")}`, ratio: coveredCount / SEGMENTS },
+      { ok: checks.PS,       text:`Proseminarium (PS): ≥ ${RULES.needPS}`,                       ratio: details.cntPS / RULES.needPS },
+      { ok: checks.PRAKTYKI, text:`Praktyki ≥ ${RULES.minPraktyki} ECTS (masz ${details.sumPr})`, ratio: details.sumPr / RULES.minPraktyki },
+      { ok: checks.HS,       text:`HS ≥ ${RULES.minHS} ECTS (masz ${details.sumHS})`,            ratio: details.sumHS / RULES.minHS },
+      { ok: checks.OWI,      text:`OWI ≥ ${RULES.minOWI} ECTS (masz ${details.sumOWI})`,         ratio: details.sumOWI / RULES.minOWI },
+      { ok: checks.E,        text:`E ≥ ${RULES.minE} ECTS (masz ${details.sumE})`,               ratio: details.sumE / RULES.minE },
+      { ok: checks.ANG,      text:`ANGIELSKI: zdany`,                                            ratio: details.cntAng / RULES.needAngielski }
+    ];
 
-  rows.forEach(r => {
-    const d = document.createElement("div");
-    d.className = `check ${r.ok ? "ok" : "bad"}`;
-    const fill = Math.max(0, Math.min(1, r.ratio || 0)) * 100;
-    d.style.setProperty("--fill", `${fill}%`);
-    d.style.setProperty("--semFrac", `${frac}%`);
-    d.innerHTML = `<span class="dot"></span><span class="text">${r.text}</span>`;
-    cl.appendChild(d);
-  });
-}
-
-
+    rows.forEach(r => {
+      const d = document.createElement("div");
+      d.className = `check ${r.ok ? "ok" : "bad"}`;
+      const fill = Math.max(0, Math.min(1, r.ratio || 0)) * 100;
+      d.style.setProperty("--fill", `${fill}%`);
+      d.style.setProperty("--semFrac", `${frac}%`);
+      d.innerHTML = `<span class="dot"></span><span class="text">${r.text}</span>`;
+      cl.appendChild(d);
+    });
+  }
 
   function serialize(){
     const semesters=[];
