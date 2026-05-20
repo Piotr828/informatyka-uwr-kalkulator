@@ -79,14 +79,19 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
 
     qs(".remove-course",node).addEventListener("click",()=>{
+      // NAPRAWA BŁĘDU: Wyciek pamięci (usuwamy instancje Choices przed usunięciem wiersza)
+      chType.destroy();
+      chTags.destroy();
+
       const sem=node.closest(".semester");
       node.remove();
       if(qs(".courses",sem).children.length===0){sem.remove();renumberSemesters()}
       recalcECTS();renderChecklist();updateSaveMode();autosave();
     });
 
+    // NAPRAWA BŁĘDU: inputSubject używa zdarzenia 'change' zamiast 'input' dla ciężkich funkcji
     inputEcts.addEventListener("input",onDataChanged);
-    inputSubject.addEventListener("input",onDataChanged);
+    inputSubject.addEventListener("change",onDataChanged);
     typeSel.addEventListener("change",onDataChanged);
     tagsSel.addEventListener("change",onDataChanged);
 
@@ -94,14 +99,20 @@ document.addEventListener("DOMContentLoaded",()=>{
     inputSubject.addEventListener("input", e => {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        const query = e.target.value.trim().toLowerCase();
-        if (query.length < 3) return;
+        const queryRaw = e.target.value.trim();
+        if (queryRaw.length < 3) return;
 
-        const matches = scrapedCourses.filter(c => c.nameLower.includes(query));
+        // NOWA FUNKCJA: Mądrzejsze autouzupełnianie (usuwa polskie znaki i ignoruje wielkość liter)
+        const normalize = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const queryNorm = normalize(queryRaw);
+
+        const matches = scrapedCourses.filter(c => normalize(c.nameLower).includes(queryNorm));
         
-        if (matches.length === 1) {
-          const match = matches[0];
-          
+        // NAPRAWA BŁĘDU: Szukanie dokładnego dopasowania (żeby Analiza I nie blokowała się przez Analizę II)
+        const exactMatch = matches.find(c => normalize(c.nameLower) === queryNorm);
+        const match = exactMatch || (matches.length === 1 ? matches[0] : null);
+        
+        if (match) {
           if (!inputEcts.value || inputEcts.value === "0") {
             inputEcts.value = match.ects;
           }
@@ -124,9 +135,30 @@ document.addEventListener("DOMContentLoaded",()=>{
     return node;
   }
 
-  function createSemester(){
+  // ZMIANA: Parametr empty pozwala stworzyć semestr bez domyślnego przedmiotu (używane w deserialize)
+  function createSemester(empty = false){
     const node=tplSem.content.firstElementChild.cloneNode(true);
-    qs(".courses",node).appendChild(createCourseRow());
+    
+    if(!empty){
+      qs(".courses",node).appendChild(createCourseRow());
+    }
+
+    // NOWA FUNKCJA: Dodawanie przedmiotu do KONKRETNEGO (nieaktualnego) semestru
+    let btnAddToSem = qs(".btn-add-to-sem", node);
+    if (!btnAddToSem) {
+      btnAddToSem = document.createElement("button");
+      btnAddToSem.textContent = "+ Dodaj przedmiot (do tego semestru)";
+      btnAddToSem.className = "btn-add-to-sem secondary"; // Możesz dopasować klasę CSS pod swój styl
+      btnAddToSem.type = "button";
+      btnAddToSem.style.marginTop = "10px";
+      node.appendChild(btnAddToSem);
+    }
+
+    btnAddToSem.addEventListener("click", () => {
+      qs(".courses", node).appendChild(createCourseRow());
+      recalcECTS(); renderChecklist(); updateSaveMode(); autosave();
+    });
+
     return node;
   }
 
@@ -138,7 +170,11 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   function addCourseToCurrent(){
     let last=semestersEl.lastElementChild;
-    if(!last){addSemester();last=semestersEl.lastElementChild}
+    // NAPRAWA BŁĘDU: Dodawanie do pustego planu tworzyło 2 przedmioty
+    if(!last){
+      addSemester(); 
+      return; // Przerwanie, addSemester już dodało przedmiot
+    }
     qs(".courses",last).appendChild(createCourseRow());
     recalcECTS();renderChecklist();updateSaveMode();autosave();
   }
@@ -163,9 +199,11 @@ document.addEventListener("DOMContentLoaded",()=>{
     let total=0;
     Array.from(semestersEl.children).forEach(sem=>{
       const sum=Array.from(qs(".courses",sem).children).reduce((a,row)=>a+(Number(qs(".ects",row).value)||0),0);
-      qs(".ects-sem",sem).textContent=sum;total+=sum;
+      if(qs(".ects-sem",sem)) qs(".ects-sem",sem).textContent=sum;
+      total+=sum;
     });
-    document.getElementById("ects-total").textContent=total;
+    const ectsTotalEl = document.getElementById("ects-total");
+    if(ectsTotalEl) ectsTotalEl.textContent=total;
   }
 
   function computeStatus(){
@@ -176,10 +214,12 @@ document.addEventListener("DOMContentLoaded",()=>{
     const hasAnyType=(c,arr)=>arr.some(t=>hasType(c,t));
     const hasAnyTag=(c,arr)=>arr.some(t=>c.tags.includes(t));
 
-    const sumI=sumWhere(c=>hasType(c,"I"));
+    // POPRZEDNIA NAPRAWA: Zliczanie IInż jako I oraz Kinż jako K (oraz poprawne wliczenie ich do puli OIKP)
+    const sumI=sumWhere(c=>hasAnyType(c, ["I", "IInż"]));
     const sumIInz=sumWhere(c=>hasType(c,"IInż"));
     const sumKInz=sumWhere(c=>hasType(c,"Kinż"));
-    const sumOIKP=sumWhere(c=>hasAnyType(c,["O","I","K","P"]));
+    const sumOIKP=sumWhere(c=>hasAnyType(c, ["O","I","IInż","K","Kinż","P"]));
+    
     const sumHS=sumWhere(c=>hasType(c,"HS"));
     const sumOWI=sumWhere(c=>hasType(c,"OWI"));
     const sumE=sumWhere(c=>hasType(c,"E"));
@@ -215,6 +255,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   function renderChecklist(){
     const SEGMENTS = 7;
     const cl = document.getElementById("checklist");
+    if(!cl) return;
     cl.innerHTML = "";
 
     const { details, checks } = computeStatus();
@@ -272,12 +313,16 @@ document.addEventListener("DOMContentLoaded",()=>{
   function deserialize(obj){
     semestersEl.innerHTML="";
     if(!obj||!obj.semesters||!obj.semesters.length){addSemester();return}
+    
     obj.semesters.forEach(semData=>{
-      const sem=tplSem.content.firstElementChild.cloneNode(true);
+      const sem=createSemester(true); // Używamy true, aby nie tworzyć domyślnego wiersza
       const box=qs(".courses",sem);
-      box.innerHTML="";
+      
       (semData.courses||[]).forEach(c=>{
-        const row=createCourseRow({subject:c.subject||"",ects:c.ects||0,types:c.types||[],tags:c.tags||[]});
+        // NAPRAWA BŁĘDU: Walidacja tablic (Array.isArray)
+        const safeTypes = Array.isArray(c.types) ? c.types : [];
+        const safeTags = Array.isArray(c.tags) ? c.tags : [];
+        const row=createCourseRow({subject:c.subject||"",ects:c.ects||0,types:safeTypes,tags:safeTags});
         box.appendChild(row);
       });
       semestersEl.appendChild(sem);
@@ -358,7 +403,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         deserialize(JSON.parse(r.result));
         autosave();
       }catch{
-        alert("Nieprawidłowy plik JSON")
+        alert("Nieprawidłowy plik JSON");
       }finally{
         fileInput.value="";
       }
